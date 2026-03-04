@@ -108,6 +108,9 @@ async function registerPeriodicSync(intervalMs) {
     await notifyClients({ type: 'background-sync-status', supported: false, reason: 'unsupported' });
     return false;
   }
+  if (!self.registration.active) {
+    return false;
+  }
   try {
     await self.registration.periodicSync.register('timer-notifier', {
       minInterval: Math.max(intervalMs, 60 * 1000),
@@ -116,7 +119,7 @@ async function registerPeriodicSync(intervalMs) {
     return true;
   } catch (error) {
     await notifyClients({ type: 'background-sync-status', supported: false, reason: error.name });
-    if (error.name !== 'NotAllowedError' && error.name !== 'NotSupportedError') {
+    if (error.name !== 'NotAllowedError' && error.name !== 'NotSupportedError' && error.name !== 'InvalidStateError') {
       console.warn('Periodic sync registration failed', error);
     }
     return false;
