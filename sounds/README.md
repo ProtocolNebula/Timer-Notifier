@@ -1,0 +1,1 @@
+Add your custom beep at `sounds/custombeep.wav` so it plays when the user selects “Custom beep.” Replace the placeholder tone with your preferred audio file (same file name, any format supported by browsers, and under ~1 MB for quick playback).

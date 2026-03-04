@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Quarter Hour Notification</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">Quarter-hour watch</p>
+        <h1>Never miss a new quarter hour</h1>
+        <p class="lede">
+          Enable notifications that fire every 15 minutes. The service worker keeps the cycle going—even if
+          you close the tab or switch apps.
+        </p>
+      </section>
+
+      <section class="panel" aria-live="polite">
+        <div class="control-row">
+          <label class="switch" for="notify-toggle">
+            <input id="notify-toggle" type="checkbox" />
+            <span class="slider"></span>
+          </label>
+          <div>
+            <p class="label">Notifications</p>
+            <p id="status" class="status">Waiting to be enabled</p>
+          </div>
+        </div>
+
+        <label class="field" for="sound-select">
+          <span class="label">Alert tone</span>
+          <select id="sound-select"></select>
+          <small>Select “Browser default” if you want the system chime; choose a custom tone to hear audio inside the site.</small>
+        </label>
+
+        <label class="field" for="interval-select">
+          <span class="label">Interval</span>
+          <select id="interval-select"></select>
+          <small>Pick how often the alert fires.</small>
+        </label>
+
+        <div class="actions">
+          <button id="test-notification" class="btn" type="button">Send test notification</button>
+          <small>Fire one alert immediately so you can confirm permissions and sound playback.</small>
+        </div>
+
+        <div class="note">
+          <p>When the timer fires, the notification shows the current hour and minute. The built-in service worker keeps the clock running even when the tab is closed.</p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
