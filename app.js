@@ -20,6 +20,7 @@ const soundSelect = document.getElementById('sound-select');
 const intervalSelect = document.getElementById('interval-select');
 const testButton = document.getElementById('test-notification');
 const statusEl = document.getElementById('status');
+const backgroundSupportEl = document.getElementById('background-support');
 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
 let state = { ...DEFAULT_STATE };
 
@@ -173,6 +174,10 @@ async function playSound(soundKey) {
 
 function handleWorkerMessages(event) {
   if (!event.data) return;
+  if (event.data.type === 'background-sync-status') {
+    applyBackgroundSyncStatus(event.data);
+    return;
+  }
   if (event.data.type === 'play-sound') {
     const requestedSound = event.data.sound || state.sound;
     playSound(requestedSound);
@@ -186,15 +191,16 @@ function handleWorkerMessages(event) {
 
 async function initServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.addEventListener('message', handleWorkerMessages);
+  navigator.serviceWorker.addEventListener('controllerchange', () => notifyWorker());
   try {
     const registration = await navigator.serviceWorker.register('sw.js');
     registration.active && notifyWorker();
     navigator.serviceWorker.ready.then(() => notifyWorker());
+    return registration;
   } catch (error) {
     console.warn('Service worker registration failed', error);
   }
-  navigator.serviceWorker.addEventListener('message', handleWorkerMessages);
-  navigator.serviceWorker.addEventListener('controllerchange', () => notifyWorker());
 }
 
 async function handleToggle() {
@@ -245,7 +251,54 @@ async function handleTestNotification() {
   }
 }
 
-function bootstrap() {
+async function describeBackgroundSupport() {
+  if (!backgroundSupportEl) return;
+  if (!('serviceWorker' in navigator)) {
+    backgroundSupportEl.textContent = 'Service workers are unavailable in this browser.';
+    return;
+  }
+  backgroundSupportEl.textContent = 'Checking background availability…';
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    if (!('periodicSync' in registration)) {
+      backgroundSupportEl.textContent = 'Periodic Background Sync is not supported here, so alerts only fire while this tab stays open.';
+      return;
+    }
+    if (!('permissions' in navigator)) {
+      backgroundSupportEl.textContent = 'Periodic Background Sync exists; enable it in your browser settings for closed-tab alerts.';
+      return;
+    }
+    const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
+    if (status.state === 'denied') {
+      backgroundSupportEl.textContent = 'Enable Periodic Background Sync in the site settings to keep alerts running after closing the tab.';
+    } else if (status.state === 'granted') {
+      backgroundSupportEl.textContent = 'Periodic Background Sync is enabled; notifications stay active when the tab is closed.';
+    } else {
+      backgroundSupportEl.textContent = 'Periodic Background Sync is available; allow it in the browser settings for offline alerts.';
+    }
+  } catch (error) {
+    backgroundSupportEl.textContent = 'Background sync support could not be determined; notifications work while this tab is open.';
+  }
+}
+
+function applyBackgroundSyncStatus({ supported, reason }) {
+  if (!backgroundSupportEl) return;
+  if (supported) {
+    backgroundSupportEl.textContent = 'Periodic Background Sync is active; alerts keep running when the tab is closed.';
+    return;
+  }
+  if (reason === 'unsupported' || reason === 'NotSupportedError') {
+    backgroundSupportEl.textContent = 'Periodic Background Sync is not available; notifications stop once the tab closes.';
+    return;
+  }
+  if (reason === 'NotAllowedError') {
+    backgroundSupportEl.textContent = 'Allow Periodic Background Sync in your site settings to keep notifications alive offline.';
+    return;
+  }
+  backgroundSupportEl.textContent = 'Background sync could not register; check your browser permissions to keep alerts running when the tab is closed.';
+}
+
+async function bootstrap() {
   populateSounds();
   populateIntervals();
   loadState();
@@ -254,7 +307,8 @@ function bootstrap() {
   soundSelect.addEventListener('change', handleSoundChange);
   intervalSelect.addEventListener('change', handleIntervalChange);
   testButton.addEventListener('click', handleTestNotification);
-  initServiceWorker();
+  await initServiceWorker();
+  await describeBackgroundSupport();
 }
 
 bootstrap();

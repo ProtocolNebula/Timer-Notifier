@@ -169,6 +169,12 @@ small {
   color: var(--muted);
 }
 
+.note-meta {
+  margin: 0.6rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 .actions {
   display: flex;
   flex-direction: column;

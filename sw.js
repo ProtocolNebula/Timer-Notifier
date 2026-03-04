@@ -104,15 +104,22 @@ function nextDelay(state) {
 }
 
 async function registerPeriodicSync(intervalMs) {
-  if (!('periodicSync' in self.registration)) return;
+  if (!('periodicSync' in self.registration)) {
+    await notifyClients({ type: 'background-sync-status', supported: false, reason: 'unsupported' });
+    return false;
+  }
   try {
     await self.registration.periodicSync.register('timer-notifier', {
       minInterval: Math.max(intervalMs, 60 * 1000),
     });
+    await notifyClients({ type: 'background-sync-status', supported: true });
+    return true;
   } catch (error) {
+    await notifyClients({ type: 'background-sync-status', supported: false, reason: error.name });
     if (error.name !== 'NotAllowedError' && error.name !== 'NotSupportedError') {
       console.warn('Periodic sync registration failed', error);
     }
+    return false;
   }
 }
 
@@ -125,7 +132,7 @@ async function ensureTimer() {
   timerId = setTimeout(() => {
     fireNotification();
   }, delay);
-  void registerPeriodicSync(getIntervalMs(state));
+  await registerPeriodicSync(getIntervalMs(state));
 }
 
 async function fireNotification({ state: preloadedState, force = false, reschedule = true } = {}) {
