@@ -1,6 +1,6 @@
 const STATE_CACHE = 'timer-notifier-state';
 const STATE_URL = '/timer-settings.json';
-const DEFAULT_STATE = { enabled: false, sound: 'default', interval: 15, lastFire: null };
+const DEFAULT_STATE = { enabled: false, sound: 'default', interval: 15, lastFire: null, pageVisible: false };
 const soundMap = {
   'gentle-chime': 'sounds/gentle-chime.wav',
   'digital-pulse': 'sounds/digital-pulse.wav',
@@ -12,11 +12,14 @@ function normalizeState(partial) {
   const safeInterval = Number.isFinite(interval) && interval > 0 ? interval : DEFAULT_STATE.interval;
   const lastFireRaw = partial?.lastFire;
   const safeLastFire = Number.isFinite(lastFireRaw) ? Number(lastFireRaw) : null;
+  const pageVisibleRaw = partial?.pageVisible;
+  const safePageVisible = pageVisibleRaw === true;
   return {
     ...DEFAULT_STATE,
     ...partial,
     interval: safeInterval,
     lastFire: safeLastFire,
+    pageVisible: safePageVisible,
   };
 }
 
@@ -141,6 +144,12 @@ async function ensureTimer() {
 async function fireNotification({ state: preloadedState, force = false, reschedule = true } = {}) {
   const state = preloadedState || (await loadState());
   if (!state.enabled && !force) return;
+  if (state.pageVisible && !force) {
+    if (reschedule) {
+      await ensureTimer();
+    }
+    return;
+  }
   const now = new Date();
   const hours = now.getHours().toString().padStart(2, '0');
   const minutes = now.getMinutes().toString().padStart(2, '0');

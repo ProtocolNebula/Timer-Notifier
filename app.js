@@ -1,5 +1,5 @@
 const STATE_KEY = 'timer-notifier-settings';
-const DEFAULT_STATE = { enabled: false, sound: 'default', interval: 15, lastFire: null };
+const DEFAULT_STATE = { enabled: false, sound: 'default', interval: 15, lastFire: null, pageVisible: false };
 const soundOptions = [
   { value: 'default', label: 'Browser default (system sound)' },
   { value: 'gentle-chime', label: 'Gentle chime' },
@@ -20,6 +20,7 @@ const soundSelect = document.getElementById('sound-select');
 const intervalSelect = document.getElementById('interval-select');
 const testButton = document.getElementById('test-notification');
 const statusEl = document.getElementById('status');
+let pageTimerId = null;
 const backgroundSupportEl = document.getElementById('background-support');
 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
 let state = { ...DEFAULT_STATE };
@@ -29,11 +30,14 @@ function normalizeState(partial) {
   const safeInterval = Number.isFinite(interval) && interval > 0 ? interval : DEFAULT_STATE.interval;
   const lastFireRaw = partial?.lastFire;
   const safeLastFire = Number.isFinite(lastFireRaw) ? Number(lastFireRaw) : null;
+  const pageVisibleRaw = partial?.pageVisible;
+  const safePageVisible = pageVisibleRaw === true;
   return {
     ...DEFAULT_STATE,
     ...partial,
     interval: safeInterval,
     lastFire: safeLastFire,
+    pageVisible: safePageVisible,
   };
 }
 
@@ -70,6 +74,56 @@ function updateUI() {
   }
 
   statusEl.textContent = 'Awaiting notification permission…';
+}
+
+function getPageIntervalMs() {
+  const minutes = state.interval || DEFAULT_STATE.interval;
+  return minutes * 60 * 1000;
+}
+
+function getNextPageTrigger(referenceTime = state.lastFire) {
+  const intervalMs = getPageIntervalMs();
+  const base = referenceTime || Date.now();
+  return Math.ceil((base + 1) / intervalMs) * intervalMs;
+}
+
+function stopPageTimer() {
+  if (!pageTimerId) return;
+  clearTimeout(pageTimerId);
+  pageTimerId = null;
+}
+
+function schedulePageTimer() {
+  stopPageTimer();
+  if (!state.enabled || !state.pageVisible) return;
+  const nextTrigger = getNextPageTrigger();
+  const delay = Math.max(1000, nextTrigger - Date.now());
+  pageTimerId = setTimeout(async () => {
+    await triggerPageNotification();
+  }, delay);
+}
+
+async function triggerPageNotification({ force = false } = {}) {
+  if (!state.enabled && !force) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const now = new Date();
+  const hours = now.getHours().toString().padStart(2, '0');
+  const minutes = now.getMinutes().toString().padStart(2, '0');
+  const body = `Current time ${hours}:${minutes}`;
+  try {
+    new Notification('Quarter-hour reminder', {
+      body,
+      tag: 'quarter-hour-alert',
+      renotify: true,
+    });
+  } catch (error) {
+    console.warn('Page notification failed', error);
+  }
+  await playSound(state.sound);
+  state.lastFire = Date.now();
+  saveState();
+  await notifyWorker();
+  schedulePageTimer();
 }
 
 function nextQuarterLabel(intervalMinutes) {
@@ -222,6 +276,7 @@ async function handleToggle() {
   saveState();
   updateUI();
   notifyWorker();
+  schedulePageTimer();
 }
 
 function handleSoundChange() {
@@ -234,6 +289,7 @@ function handleIntervalChange() {
   state.interval = Number(intervalSelect.value) || DEFAULT_STATE.interval;
   saveState();
   notifyWorker();
+  schedulePageTimer();
 }
 
 async function handleTestNotification() {
@@ -283,6 +339,19 @@ async function describeBackgroundSupport() {
   }
 }
 
+function handleVisibilityChange() {
+  const visible = document.visibilityState === 'visible';
+  if (state.pageVisible === visible) return;
+  state.pageVisible = visible;
+  saveState();
+  notifyWorker();
+  if (visible) {
+    schedulePageTimer();
+  } else {
+    stopPageTimer();
+  }
+}
+
 function applyBackgroundSyncStatus({ supported, reason }) {
   if (!backgroundSupportEl) return;
   if (supported) {
@@ -309,6 +378,8 @@ async function bootstrap() {
   soundSelect.addEventListener('change', handleSoundChange);
   intervalSelect.addEventListener('change', handleIntervalChange);
   testButton.addEventListener('click', handleTestNotification);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  handleVisibilityChange();
   await initServiceWorker();
   await describeBackgroundSupport();
 }
