@@ -98,15 +98,19 @@ async function ensureNotificationPermission() {
   return permission === 'granted';
 }
 
-async function notifyWorker() {
+async function postToServiceWorker(message) {
   if (!('serviceWorker' in navigator)) return;
   try {
     const registration = await navigator.serviceWorker.ready;
-    const controller = navigator.serviceWorker.controller || registration.active || registration.waiting || registration.installing;
-    controller?.postMessage({ type: 'update', state });
+    const worker = navigator.serviceWorker.controller || registration.active || registration.waiting || registration.installing;
+    worker?.postMessage(message);
   } catch (error) {
-    console.warn('Unable to notify service worker', error);
+    console.warn('Unable to reach service worker', error);
   }
+}
+
+async function notifyWorker() {
+  await postToServiceWorker({ type: 'update', state });
 }
 
 function populateSounds() {
@@ -241,9 +245,7 @@ async function handleTestNotification() {
   }
   statusEl.textContent = 'Requesting a test notification…';
   try {
-    const registration = await navigator.serviceWorker.ready;
-    const controller = navigator.serviceWorker.controller || registration.active || registration.waiting || registration.installing;
-    controller?.postMessage({ type: 'test' });
+    await postToServiceWorker({ type: 'test' });
     statusEl.textContent = 'Test notification triggered (check your system tray).';
   } catch (error) {
     console.warn('Unable to reach service worker for testing', error);
