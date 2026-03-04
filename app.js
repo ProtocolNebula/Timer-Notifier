@@ -1,5 +1,5 @@
 const STATE_KEY = 'timer-notifier-settings';
-const DEFAULT_STATE = { enabled: false, sound: 'default', interval: 15 };
+const DEFAULT_STATE = { enabled: false, sound: 'default', interval: 15, lastFire: null };
 const soundOptions = [
   { value: 'default', label: 'Browser default (system sound)' },
   { value: 'gentle-chime', label: 'Gentle chime' },
@@ -8,9 +8,9 @@ const soundOptions = [
 ];
 
 const soundFiles = {
-  'gentle-chime': 'sounds/gentle-chime.wav',
-  'digital-pulse': 'sounds/digital-pulse.wav',
-  custombeep: 'sounds/custombeep.wav',
+  // 'gentle-chime': 'sounds/gentle-chime.wav',
+  // 'digital-pulse': 'sounds/digital-pulse.wav',
+  // custombeep: 'sounds/custombeep.wav',
 };
 
 const intervalOptions = [1, 2, 5, 10, 15, 30, 60];
@@ -26,10 +26,13 @@ let state = { ...DEFAULT_STATE };
 function normalizeState(partial) {
   const interval = Number(partial?.interval ?? DEFAULT_STATE.interval);
   const safeInterval = Number.isFinite(interval) && interval > 0 ? interval : DEFAULT_STATE.interval;
+  const lastFireRaw = partial?.lastFire;
+  const safeLastFire = Number.isFinite(lastFireRaw) ? Number(lastFireRaw) : null;
   return {
     ...DEFAULT_STATE,
     ...partial,
     interval: safeInterval,
+    lastFire: safeLastFire,
   };
 }
 

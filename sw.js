@@ -1,6 +1,6 @@
 const STATE_CACHE = 'timer-notifier-state';
 const STATE_URL = '/timer-settings.json';
-const DEFAULT_STATE = { enabled: false, sound: 'default', interval: 15 };
+const DEFAULT_STATE = { enabled: false, sound: 'default', interval: 15, lastFire: null };
 const soundMap = {
   'gentle-chime': 'sounds/gentle-chime.wav',
   'digital-pulse': 'sounds/digital-pulse.wav',
@@ -10,10 +10,13 @@ const soundMap = {
 function normalizeState(partial) {
   const interval = Number(partial?.interval ?? DEFAULT_STATE.interval);
   const safeInterval = Number.isFinite(interval) && interval > 0 ? interval : DEFAULT_STATE.interval;
+  const lastFireRaw = partial?.lastFire;
+  const safeLastFire = Number.isFinite(lastFireRaw) ? Number(lastFireRaw) : null;
   return {
     ...DEFAULT_STATE,
     ...partial,
     interval: safeInterval,
+    lastFire: safeLastFire,
   };
 }
 
@@ -88,12 +91,29 @@ function getIntervalMs(state) {
   return (state.interval || DEFAULT_STATE.interval) * 60 * 1000;
 }
 
-function nextDelay(state) {
+function getNextTriggerTime(state) {
   const interval = getIntervalMs(state);
-  const now = Date.now();
-  const nextTick = Math.ceil((now + 1) / interval) * interval;
-  const delay = nextTick - now;
+  const reference = state.lastFire || Date.now();
+  return Math.ceil((reference + 1) / interval) * interval;
+}
+
+function nextDelay(state) {
+  const nextTrigger = getNextTriggerTime(state);
+  const delay = nextTrigger - Date.now();
   return Math.max(1000, delay);
+}
+
+async function registerPeriodicSync(intervalMs) {
+  if (!('periodicSync' in self.registration)) return;
+  try {
+    await self.registration.periodicSync.register('timer-notifier', {
+      minInterval: Math.max(intervalMs, 60 * 1000),
+    });
+  } catch (error) {
+    if (error.name !== 'NotAllowedError' && error.name !== 'NotSupportedError') {
+      console.warn('Periodic sync registration failed', error);
+    }
+  }
 }
 
 async function ensureTimer() {
@@ -105,10 +125,11 @@ async function ensureTimer() {
   timerId = setTimeout(() => {
     fireNotification();
   }, delay);
+  void registerPeriodicSync(getIntervalMs(state));
 }
 
-async function fireNotification({ force = false, reschedule = true } = {}) {
-  const state = await loadState();
+async function fireNotification({ state: preloadedState, force = false, reschedule = true } = {}) {
+  const state = preloadedState || (await loadState());
   if (!state.enabled && !force) return;
   const now = new Date();
   const hours = now.getHours().toString().padStart(2, '0');
@@ -126,6 +147,8 @@ async function fireNotification({ force = false, reschedule = true } = {}) {
   await self.registration.showNotification('Quarter-hour reminder', options).catch(() => {});
   await notifyClients({ type: 'play-sound', sound: state.sound });
   if (reschedule) {
+    const updated = normalizeState({ ...state, lastFire: Date.now() });
+    await saveState(updated);
     await ensureTimer();
   }
 }
@@ -133,4 +156,20 @@ async function fireNotification({ force = false, reschedule = true } = {}) {
 async function notifyClients(message) {
   const clients = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' });
   await Promise.all(clients.map((client) => client.postMessage(message)));
+}
+
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag !== 'timer-notifier') return;
+  event.waitUntil(handlePeriodicSync());
+});
+
+async function handlePeriodicSync() {
+  const state = await loadState();
+  if (!state.enabled) return;
+  const nextTrigger = getNextTriggerTime(state);
+  if (Date.now() >= nextTrigger) {
+    await fireNotification({ state, force: true });
+    return;
+  }
+  await ensureTimer();
 }
