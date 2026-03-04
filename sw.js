@@ -151,7 +151,9 @@ async function fireNotification({ state: preloadedState, force = false, reschedu
   if (soundMap[state.sound]) {
     options.sound = soundMap[state.sound];
   }
-  await self.registration.showNotification('Quarter-hour reminder', options).catch(() => {});
+  await self.registration.showNotification('Quarter-hour reminder', options).catch((error) => {
+    console.error(error);
+  });
   await notifyClients({ type: 'play-sound', sound: state.sound });
   if (reschedule) {
     const updated = normalizeState({ ...state, lastFire: Date.now() });
