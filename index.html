@@ -8,14 +8,13 @@
   </head>
   <body>
     <main class="shell">
-      <section class="hero">
-        <p class="eyebrow">Quarter-hour watch</p>
-        <h1>Never miss a new quarter hour</h1>
-        <p class="lede">
-          Enable notifications that fire every 15 minutes. The service worker keeps the cycle going—even if
-          you close the tab or switch apps.
-        </p>
-      </section>
+        <section class="hero">
+          <p class="eyebrow">Quarter-hour watch</p>
+          <h1>Never miss a reminder</h1>
+          <p class="lede">
+            Configure interval notifications inside this extension. The background process keeps firing alerts even when the popup is closed.
+          </p>
+        </section>
 
       <section class="panel" aria-live="polite">
         <div class="control-row">
@@ -47,8 +46,8 @@
         </div>
 
         <div class="note">
-          <p>When the timer fires, the notification shows the current hour and minute. The built-in service worker keeps the clock running even when the tab is closed.</p>
-          <p id="background-support" class="note-meta">Checking background availability…</p>
+          <p>When the timer fires, the notification shows the current hour and minute. The WebExtension background worker keeps the cycle alive even when the popup is closed.</p>
+          <p id="background-support" class="note-meta">Reminders run via the background alarms API.</p>
         </div>
       </section>
     </main>
